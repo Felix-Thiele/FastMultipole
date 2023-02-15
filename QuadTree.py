@@ -29,7 +29,7 @@ class QuadTree:
 
         recursive_build(('', ''))
 
-    def _get_interaction_nodes(self, node, lvl):
+    def _get_interaction_nodes(self, node, lvl, ret_same_lvl=False):
         # Get the interaction neighbors of a node
         interaction_nodes = []
         for x_shift, y_shift in itertools.product([-1, 0, 1], [-1, 0, 1]):
@@ -40,22 +40,45 @@ class QuadTree:
                     x = int_bin(x_shifted_parent, lvl - 1) + str(x_child)
                     y = int_bin(y_shifted_parent, lvl - 1) + str(y_child)
                     interaction_nodes.append((x, y))
-        return [n for n in interaction_nodes if n in self.nodes]
-
+        if ret_same_lvl:
+            return [n for n in interaction_nodes if n in self.nodes]
+        all_lvl_neigh = []
+        for n in interaction_nodes:
+            if n in self.nodes:
+                all_lvl_neigh.append(n)
+            else:
+                x,y=n
+                while (x,y) not in self.nodes:
+                    x,y =x[:-1], y[:-1]
+                all_lvl_neigh.append((x,y))
+        return all_lvl_neigh
     def get_close_bodies(self, node):
+        def bodies_in_node(node):
+            if self.nodes[node][QuadTree.IS_LEAF]:
+                return [list(_) for _ in self.nodes[node][QuadTree.BODIES]]
+            else:
+                bodies = []
+                for child in self.children_labels(node):
+                    bodies += bodies_in_node(child)
+            return bodies
         # Gets the direct neighbours of a node
-        close_bodies = []
+        near_bodies = []
         for x_shift, y_shift in itertools.product([-1, 0, 1], [-1, 0, 1]):
-            x_shifted, y_shifted = int_bin(bin_int(node[0])-x_shift, len(node[0])), int_bin(bin_int(node[1]) - y_shift, len(node[0]))
-            while (x_shifted, y_shifted) not in self.nodes:
-                x_shifted, y_shifted = x_shifted[:-1], y_shifted[:-1]
-            close_bodies += [list(_) for _ in self.nodes[(x_shifted, y_shifted)][QuadTree.BODIES]]
-        return np.unique(np.array(close_bodies), axis=0)
+            x_n = bin_int(node[0])-x_shift
+            y_n = bin_int(node[1])-y_shift
+            if x_n>=0 and y_n>=0 and x_n<=2**self.nodes[node][QuadTree.LEVEL]-1 and y_n<=2**self.nodes[node][QuadTree.LEVEL]-1:
+                print(x_n, y_n)
+                x_shifted, y_shifted = int_bin(x_n, self.nodes[node][QuadTree.LEVEL]), int_bin(y_n, self.nodes[node][QuadTree.LEVEL])
+                while (x_shifted, y_shifted) not in self.nodes:
+                    x_shifted, y_shifted = x_shifted[:-1], y_shifted[:-1]
+                print(x_shifted, y_shifted)
+                near_bodies += bodies_in_node((x_shifted, y_shifted))
+        return np.unique(np.array(near_bodies), axis=0)
 
     def get_quad_center(self, node, lvl):
         return self.x_min + self.width *1 / 2 ** (lvl) * (1 / 2 + bin_int(node[0])), self.y_min + self.height * 1 / 2 ** (lvl) * (1 / 2 + bin_int(node[1]))
 
-    def get_children(self, node):
+    def children_labels(self, node):
         # This will return the codes of children independent of if they are already defined
         return [(node[0] + str(x), node[1] + str(y)) for x, y in itertools.product([0, 1], [0, 1])]
 
@@ -63,7 +86,7 @@ class QuadTree:
         new_nodes = []
         lvl = self.nodes[node][QuadTree.LEVEL]
         orig_bodies = self.nodes[node][QuadTree.BODIES]
-        for new_node in self.get_children(node):
+        for new_node in self.children_labels(node):
             bodies = orig_bodies.copy()
             new_nodes.append(new_node)
             # bodies of children
@@ -72,14 +95,16 @@ class QuadTree:
             if new_node[0][-1]=='1': x_mask = np.logical_not(x_mask)
             if new_node[1][-1]=='1': y_mask = np.logical_not(y_mask)
             # interaction nodes of new child
-            interaction_nodes = self._get_interaction_nodes(new_node, lvl + 1)
+            #interaction_nodes = self._get_interaction_nodes(new_node, lvl + 1)
             self.nodes[new_node] = [lvl + 1,
                                     True,
-                                    interaction_nodes,
+                                    [],
+                                    #interaction_nodes,
                                     bodies[np.where(x_mask & y_mask)]]
             # add new child as interaction node to its interaction neighbours
-            for interact in interaction_nodes:
-                self.nodes[interact][QuadTree.ACT_NEIGH].append(new_node)
+            #for interact in interaction_nodes:
+            #    self.nodes[interact][QuadTree.ACT_NEIGH].append(new_node)
         self.nodes[node][QuadTree.IS_LEAF] = False
         self.nodes[node][QuadTree.BODIES] = []
         return new_nodes
+    

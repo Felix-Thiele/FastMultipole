@@ -12,6 +12,8 @@ from tools import *
 import numpy as np
 import itertools
 import math
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 from scipy.special import binom
 
 from QuadTree import QuadTree
@@ -40,11 +42,12 @@ from QuadTree import QuadTree
 
 class FastMultipole:
 
-    def __init__(self, bodies):
+    def __init__(self, bodies, terms=5):
         self.qtree = QuadTree(bodies, bodies_per_node=1)
-        self.terms = 5
+        self.terms = terms
         self.outgoing_coeff_dict = {}
         self.incoming_coeff_dict = {}
+        print(self.qtree.nodes)
 
 
     def _calc_outgoing_coef(self, node = ('', '')):
@@ -58,7 +61,7 @@ class FastMultipole:
                   for b in node_details[QuadTree.BODIES]]) for k in range(1, self.terms+1)])
         else:
             coefs = np.zeros((self.terms + 1), dtype=complex)
-            for child in self.qtree.get_children(node):
+            for child in self.qtree.children_labels(node):
                 child_coeffs = self._calc_outgoing_coef(child)
                 center_shift = complex(*self.qtree.get_quad_center(node, self.qtree.nodes[child][QuadTree.LEVEL])) - complex(*center)
                 shifted_child_coeff = np.array([child_coeffs[0]] + [sum([child_coeffs[k] * center_shift ** (l - k) * binom(l - 1, k - 1) - (child_coeffs[0] * center_shift ** l) / l
@@ -84,7 +87,7 @@ class FastMultipole:
             inc_coeff += self._calc_incoming_coef_from_neigh_outgoing_coef(node, act_neigh)
         self.incoming_coeff_dict[node] = inc_coeff
         if not self.qtree.nodes[node][QuadTree.IS_LEAF]:
-            for child in self.qtree.get_children(node):
+            for child in self.qtree.children_labels(node):
                 self._calc_all_incoming_from_outgoing(child)
 
     def _add_incoming_coef_to_children(self, node=('', '')):
@@ -92,7 +95,7 @@ class FastMultipole:
         leaves = []
         node_details = self.qtree.nodes[node]
         if not node_details[QuadTree.IS_LEAF]:
-            for child in self.qtree.get_children(node):
+            for child in self.qtree.children_labels(node):
                 center_shift = complex(*self.qtree.get_quad_center(node, self.qtree.nodes[node][QuadTree.LEVEL])) \
                                - complex(*self.qtree.get_quad_center(child, self.qtree.nodes[child][QuadTree.LEVEL]))
                 node_inc_coeff = self.incoming_coeff_dict[node]
@@ -109,31 +112,38 @@ class FastMultipole:
         return leaves
 
     def _calc_forces_for_bodies_in_leaves(self, leaves):
+        potentials = {}
         forces = {}
         for leaf in leaves:
             leaf_details = self.qtree.nodes[leaf]
             z0, coeffs = complex(*self.qtree.get_quad_center(leaf, self.qtree.nodes[leaf][QuadTree.LEVEL])), self.incoming_coeff_dict[leaf]
             for body in leaf_details[QuadTree.BODIES]:
-                force=0
-                # Forces from innertayler expansions
+                potential=0
+                force = 0
+                # Potentials from innertayler expansions
                 z = complex(*body[:2])
-                force -= np.real(np.polyval(coeffs[::-1], z - z0))
-                # Forces from bodies in leaf and neighboured nodes
+                potential -= np.real(np.polyval(coeffs[::-1], z - z0))
+                force -= np.polyval(np.polyder(coeffs[::-1]), z - z0)
+                # Potentials from bodies in leaf and neighboured nodes
                 close_bodies = self.qtree.get_close_bodies(leaf)
                 for close_body in close_bodies:
-                    if not np.array_equal(close_body, body):
+                    if not np.array_equal(close_body[:2], body[:2]):
                         dist = np.sqrt((body[0] - close_body[0])**2 + (body[1] - close_body[1])**2)
-                        force -= body[2]*np.log(dist)
+                        potential -= body[2]*np.log(dist)
+                        dist = complex(*body[:2])-complex(*close_body[:2])
+                        force += np.conjugate(close_body[2]*body[2] * 1/dist)
+                potentials[tuple(body)]=potential
                 forces[tuple(body)]=force
-        return forces
+        return potentials, forces
 
     def calc_forces(self):
         self._calc_outgoing_coef(node=('', ''))
         self._calc_all_incoming_from_outgoing(node=('', ''))
         leaves = self._add_incoming_coef_to_children(node=('', ''))
+        print(leaves)
+        print(self.qtree.nodes)
         forces = self._calc_forces_for_bodies_in_leaves(leaves)
         return forces
 
 
-FM = FastMultipole(np.array([[1,2,3], [2,1,4], [1.2,2,3], [2,1.3,4], [1,2.6,3], [2.8,1,4]]))
-forces = FM.calc_forces()
+
