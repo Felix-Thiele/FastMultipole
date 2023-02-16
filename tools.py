@@ -1,6 +1,7 @@
 
 def int_bin(val, depth):
     res = str(bin(val))[2:]
+    assert depth - len(res)>=0
     res = '0' * (depth - len(res)) + res
     return res
 

@@ -140,8 +140,6 @@ class FastMultipole:
         self._calc_outgoing_coef(node=('', ''))
         self._calc_all_incoming_from_outgoing(node=('', ''))
         leaves = self._add_incoming_coef_to_children(node=('', ''))
-        print(leaves)
-        print(self.qtree.nodes)
         forces = self._calc_forces_for_bodies_in_leaves(leaves)
         return forces
 

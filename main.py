@@ -20,9 +20,9 @@ plt.ylim(-1,5)
 
 for b in bodies:
     plt.plot(b[0], b[1], 'kx')
-    plt.quiver(b[0], b[1], np.real(forces[tuple(b)]), np.imag(forces[tuple(b)]), color='r', scale=20, headlength=7)
-    plt.quiver(b[0], b[1], np.real(bf_forces[tuple(b)]), np.imag(bf_forces[tuple(b)]), color='b', scale=20, headlength=5)
-    plt.quiver(b[0], b[1], np.real(bh_forces[tuple(b)]), np.imag(bh_forces[tuple(b)]), color='y', scale=20 , headlength=3 )
+    plt.quiver(b[0], b[1], np.real(forces[tuple(b)]), np.imag(forces[tuple(b)]), color='r', scale=20 , headlength=7, headwidth=7)
+    plt.quiver(b[0], b[1], np.real(bf_forces[tuple(b)]), np.imag(bf_forces[tuple(b)]), color='b', scale=20, headlength=5, headwidth=5)
+    plt.quiver(b[0], b[1], np.real(bh_forces[tuple(b)]), np.imag(bh_forces[tuple(b)]), color='y', scale=20 , headlength=3, headwidth=3)
 
 r_patch = mpatches.Patch(color='r', label='FastMultipole')
 b_patch = mpatches.Patch(color='b', label='BruteForce')

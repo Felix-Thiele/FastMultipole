@@ -9,10 +9,10 @@ from QuadTree import QuadTree
 
 class BarnesHut:
 
-    def __init__(self, bodies):
+    def __init__(self, bodies, force_fkt=lambda dist, q1, q2: np.conjugate(q1 * q2 * 1 / dist)):
+        self.force_fkt = force_fkt
         self.qtree = QuadTree(bodies, bodies_per_node=1)
         self.quad_dict = {}
-        print(self.qtree.get_close_bodies(('00', '00')))
 
     def calc_node_centres(self, node = ('', '')):
         center, charge = 0, 0
@@ -30,50 +30,40 @@ class BarnesHut:
         self.quad_dict[node]=(center, charge)
         return center, charge
 
-    def calc_forces(self):
-        self. calc_node_centres()
+    def calc_forces(self, force_fkt=None):
 
-        def bodies_in_node(node):
-            if self.qtree.nodes[node][QuadTree.IS_LEAF]:
-                return [list(_) for _ in self.qtree.nodes[node][QuadTree.BODIES]]
-            else:
-                bodies = []
-                for child in self.qtree.children_labels(node):
-                    bodies += bodies_in_node(child)
-            return bodies
+        if not force_fkt: force_fkt = self.force_fkt
+
+        self. calc_node_centres()
 
         forces = {}
         leaves = [node for node in self.qtree.nodes if self.qtree.nodes[node][QuadTree.IS_LEAF]]
         for leaf in leaves:
             leaf_details = self.qtree.nodes[leaf]
             for body in leaf_details[QuadTree.BODIES]:
-                print('===================')
-                print(body)
-                print('====')
                 force = 0
                 # Potentials from bodies in leaf and neighboured nodes
                 close_bodies = self.qtree.get_close_bodies(leaf)
                 for close_body in close_bodies:
                     if not np.array_equal(close_body[:2], body[:2]):
-                        print(close_body)
                         dist = complex(*body[:2]) - complex(*close_body[:2])
                         force += np.conjugate(close_body[2] * body[2] * 1 / dist)
-                forces[tuple(body)] = force
                 temp_leaf = leaf
-
-                print('====')
                 while len(temp_leaf[0])>1:
-                    temp_leaf = temp_leaf[0][:-1], temp_leaf[1][:-1]
-                    print(temp_leaf)
                     for neighbour in self.qtree.nodes[temp_leaf][QuadTree.ACT_NEIGH]:
-                        close_bodies = bodies_in_node(neighbour)
+                        # This is the same as brute force to test QTREE
+                        """close_bodies = self.qtree.bodies_in_node(neighbour)
                         for close_body in close_bodies:
                             if not np.array_equal(close_body[:2], body[:2]):
-                                print(close_body)
                                 dist = complex(*body[:2]) - complex(*close_body[:2])
-                                force += np.conjugate(close_body[2] * body[2] * 1 / dist)
-                        #dist = complex(*body[:2]) - complex(*self.quad_dict[neighbour][:2])
-                        #force += np.conjugate(close_body[2] * body[2] * 1 / dist)
+                                force += force_fkt(dist, body[2], close_body[2])"""
+                        close_body, charge = self.quad_dict[neighbour]
+                        dist = complex(*body[:2]) - close_body
+                        force += force_fkt(dist, body[2], charge)
+
+                    temp_leaf = temp_leaf[0][:-1], temp_leaf[1][:-1]
+
+                forces[tuple(body)] = force
         return forces
 
 
